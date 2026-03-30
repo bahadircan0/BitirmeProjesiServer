@@ -13,5 +13,6 @@ namespace Application.DTOs
         public string Name { get; set; } = null!;
         public string Surname { get; set; } = null!;
         public int RoleId { get; set; }
+        public string? TeacherEmail { get; set; }
     }
 }
