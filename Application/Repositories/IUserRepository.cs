@@ -12,5 +12,8 @@ namespace Application.Repositories
         Task<User?> GetByEmailAsync(string email);
         Task AddUserAsync(User user);
         Task<int> SaveAsync();
+        Task AddTeacherStudentAsync(TeacherStudent relation);
+        Task<List<User>> GetStudentsByTeacherIdAsync(int teacherId);
+
     }
 }

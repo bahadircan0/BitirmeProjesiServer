@@ -1,6 +1,7 @@
 ﻿using Application.DTOs;
 using Application.Repositories;
 using Domain.Entities;
+using Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -27,28 +28,56 @@ namespace WebApi.Controllers
         {
             try
             {
-                // 1. E-posta kontrolü
                 var existingUser = await _userRepository.GetByEmailAsync(registerDto.Email);
                 if (existingUser != null)
                 {
                     return BadRequest("Bu e-posta adresi zaten kullanılıyor.");
                 }
+                User? teacher = null;
 
-                // 2. Yeni kullanıcıyı oluştur (Şifre düz metin)
+                if (registerDto.RoleId == (int)UserRoles.Student)
+                {
+                    if (string.IsNullOrEmpty(registerDto.TeacherEmail))
+                    {
+                        return BadRequest("Öğrenciler kayıt olurken bir hoca e-postası girmek zorundadır!");
+                    }
+
+                    teacher = await _userRepository.GetByEmailAsync(registerDto.TeacherEmail);
+
+                    if (teacher == null || teacher.RoleId != (int)UserRoles.Teacher)
+                    {
+                        return BadRequest("Girilen e-posta adresine ait geçerli bir hoca bulunamadı.");
+                    }
+                }
+
                 var newUser = new User
                 {
                     Email = registerDto.Email,
                     Password = registerDto.Password,
                     Name = registerDto.Name,
                     Surname = registerDto.Surname,
-                    RoleId = registerDto.RoleId, 
+                    RoleId = registerDto.RoleId,
                     CreatedDatetime = DateTime.Now,
                     Deleted = false
                 };
 
-                // 3. Veritabanına kaydet
                 await _userRepository.AddUserAsync(newUser);
                 await _userRepository.SaveAsync();
+
+                if (registerDto.RoleId == (int)UserRoles.Student && teacher != null)
+                {
+                    var relation = new TeacherStudent
+                    {
+                        TeacherId = teacher.RecordId,
+                        StudentId = newUser.RecordId,
+                        CreatedDatetime = DateTime.Now,
+                        Deleted = false
+                    };
+
+                    await _userRepository.AddTeacherStudentAsync(relation);
+                    await _userRepository.SaveAsync();
+                }
+
 
                 return Ok("Kullanıcı başarıyla kaydedildi! 🎉");
             }
@@ -63,44 +92,42 @@ namespace WebApi.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
         {
-            // 1. Kullanıcıyı veritabanından çekiyoruz (UserRepository'de Include(u => u.Role) var!)
-            var user = await _userRepository.GetByEmailAsync(loginDto.Email);
-
-            // 2. Kullanıcı var mı ve şifresi doğru mu?
-            if (user == null || user.Password != loginDto.Password)
+            try
             {
-                return BadRequest("E-posta veya şifre hatalı.");
-            }
+                var user = await _userRepository.GetByEmailAsync(loginDto.Email);
 
-            // --- TOKEN (BİLET) ÜRETME AŞAMASI ---
+                if (user == null || user.Password != loginDto.Password)
+                {
+                    return BadRequest("E-posta veya şifre hatalı.");
+                }
 
-            // appsettings.json'daki gizli anahtarımızı alıyoruz
-            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
-            var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-            // Token içine basacağımız bilgiler (Claims)
-            var claims = new List<Claim>
+                var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+                var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+                var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, user.RecordId.ToString()),
                 new Claim(ClaimTypes.Email, user.Email),
                 new Claim(ClaimTypes.Name, $"{user.Name} {user.Surname}"),
-                
-                // EN KRİTİK YER: Kullanıcının rol adını Token'a basıyoruz! (User.Role null gelmemeli)
                 new Claim(ClaimTypes.Role, user.Role.Name)
             };
 
-            // Token ayarlarını yapıyoruz
-            var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.Now.AddHours(3), // Token 3 saat geçerli
-                signingCredentials: credentials);
+                var token = new JwtSecurityToken(
+                    issuer: _configuration["Jwt:Issuer"],
+                    audience: _configuration["Jwt:Audience"],
+                    claims: claims,
+                    expires: DateTime.Now.AddHours(3), // Token 3 saat geçerli
+                    signingCredentials: credentials);
 
-            var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
+                var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
-            // Kullanıcıya Token'ı veriyoruz
-            return Ok(new { Token = tokenString, Message = "Giriş başarılı!" });
+                return Ok(new { Token = tokenString, Message = "Giriş başarılı!" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Giriş yaparken bir hata oluştu: {ex.Message}");
+            }
         }
     }
 }

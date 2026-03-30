@@ -18,6 +18,12 @@ namespace Persistance.Repositories
         {
             _context = context;
         }
+
+        public async Task AddTeacherStudentAsync(TeacherStudent relation)
+        {
+            await _context.Set<TeacherStudent>().AddAsync(relation);
+        }
+
         public async Task AddUserAsync(User user)
         {
             await _context.Users.AddAsync(user);
@@ -28,6 +34,15 @@ namespace Persistance.Repositories
             return await _context.Users
                 .Include(x => x.Role)
                 .FirstOrDefaultAsync(x => x.Email == email);
+        }
+
+        public async  Task<List<User>> GetStudentsByTeacherIdAsync(int teacherId)
+        {
+            return await _context.TeacherStudents
+        .Where(ts => ts.TeacherId == teacherId && !ts.Deleted) // Hocaya ait ve silinmemiş kayıtlar
+        .Select(ts => ts.Student) // Ara tablodan "Student" (User) nesnesine geçiş yapıyoruz
+        .Where(s => !s.Deleted) // Öğrenci de silinmemiş olmalı
+        .ToListAsync();
         }
 
         public async Task<int> SaveAsync()
