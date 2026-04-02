@@ -1,10 +1,13 @@
 ﻿using Application.Repositories;
+using Infrasturcture.Hubs;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Persistance.Contexts;
 using Persistance.Repositories;
 using System.Text;
+
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,7 +23,9 @@ builder.Services.AddCors(options =>
         {
             policy.WithOrigins("http://localhost:5173") // React  adres
                   .AllowAnyHeader()
-                  .AllowAnyMethod();
+                  .AllowAnyMethod()
+                  .AllowCredentials(); // SignalR için şart!
+
         });
 });
 
@@ -39,9 +44,26 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+builder.Services.AddHttpClient("DailyClient", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Daily:BaseUrl"]!);
+    client.DefaultRequestHeaders.Add("Authorization",
+        $"Bearer {builder.Configuration["Daily:ApiKey"]}");
+});
+
+builder.Services.AddHttpClient("Judge0Client", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Judge0:BaseUrl"]!);
+});
+
+builder.Services.AddSignalR();
+
+
+
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IMeetingRepository, MeetingRepository>();
+
 
 
 
@@ -61,8 +83,11 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors("AllowReactApp");
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<CodeHub>("/hubs/code");
+
 
 app.Run();

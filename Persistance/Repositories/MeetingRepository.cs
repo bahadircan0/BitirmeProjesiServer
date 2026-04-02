@@ -36,6 +36,12 @@ namespace Persistance.Repositories
             return await _context.Database.BeginTransactionAsync();
         }
 
+        public async Task<Meeting?> GetByIdAsync(int meetingId)
+        {
+            return await _context.Meetings
+                .FirstOrDefaultAsync(m => m.RecordId == meetingId && !m.Deleted);
+        }
+
         public async Task<List<Meeting>> GetMeetingsByUserIdAsync(int userId, string role)
         {
 
@@ -54,6 +60,12 @@ namespace Persistance.Repositories
                     .Where(m => !m.Deleted)
                     .ToListAsync();
             }
+        }
+
+        public async Task<bool> IsParticipantAsync(int meetingId, int userId)
+        {
+            return await _context.MeetingParticipants
+                    .AnyAsync(mp => mp.MeetingId == meetingId && mp.UserId == userId && !mp.Deleted);
         }
 
         public async Task SaveAsync()
