@@ -16,5 +16,8 @@ namespace Application.Repositories
         Task<IDbContextTransaction> BeginTransactionAsync();
         Task<List<Meeting>> GetMeetingsByUserIdAsync(int userId, string role);
 
+        Task<Meeting?> GetByIdAsync(int meetingId);
+        Task<bool> IsParticipantAsync(int meetingId, int userId);
+
     }
 }
