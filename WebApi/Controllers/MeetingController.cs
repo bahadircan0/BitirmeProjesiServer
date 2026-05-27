@@ -133,7 +133,6 @@ namespace WebApi.Controllers
 
                 var meetings = await _meetingRepository.GetMeetingsByUserIdAsync(userId, role);
 
-                // FullCalendar'ın beklediği JSON formatına dönüştürüyoruz
                 var eventList = meetings.Select(m => new
                 {
                     id = m.RecordId,
@@ -162,18 +161,15 @@ namespace WebApi.Controllers
                 var role = User.FindFirst(ClaimTypes.Role)!.Value;
                 var isTeacher = role == "Teacher";
 
-                // Toplantıyı bul
                 var meeting = await _meetingRepository.GetByIdAsync(meetingId);
                 if (meeting == null) return NotFound("Toplantı bulunamadı.");
 
-                // Öğrenci ise katılımcı listesinde olmalı
                 if (!isTeacher)
                 {
                     var isParticipant = await _meetingRepository.IsParticipantAsync(meetingId, userId);
                     if (!isParticipant) return Forbid();
                 }
 
-                // Daily.co'dan meeting token üret
                 var dailyClient = _httpClientFactory.CreateClient("DailyClient");
 
                 var tokenPayload = new
@@ -181,7 +177,7 @@ namespace WebApi.Controllers
                     properties = new
                     {
                         room_name = meeting.DailyRoomName,
-                        is_owner = isTeacher,  // Hoca owner olur, öğrenci değil
+                        is_owner = isTeacher,  
                         exp = new DateTimeOffset(meeting.EndTime).ToUnixTimeSeconds()
                     }
                 };
@@ -203,7 +199,6 @@ namespace WebApi.Controllers
                 using var doc = JsonDocument.Parse(tokenJson);
                 var meetingToken = doc.RootElement.GetProperty("token").GetString();
 
-                // Token ile katılım URL'si
                 var joinUrl = $"{meeting.DailyRoomUrl}?t={meetingToken}";
 
                 return Ok(new { joinUrl });
@@ -228,52 +223,32 @@ namespace WebApi.Controllers
                     stdin = ""
                 };
 
-                var content = new StringContent(
-                    JsonSerializer.Serialize(payload),
-                    Encoding.UTF8,
-                    "application/json");
+                var response = await judge0Client.PostAsJsonAsync("submissions?base64_encoded=false&wait=true", payload);
 
-                // 1. Kodu gönder, token al
-                var submitRes = await judge0Client.PostAsync(
-                    "submissions?base64_encoded=false", content);
-
-                var submitJson = await submitRes.Content.ReadAsStringAsync();
-                using var submitDoc = JsonDocument.Parse(submitJson);
-                var submissionToken = submitDoc.RootElement.GetProperty("token").GetString();
-
-                // 2. Sonucu polling ile bekle
-                string output = "Çıktı yok.";
-                for (int i = 0; i < 10; i++)
+                if (!response.IsSuccessStatusCode)
                 {
-                    await Task.Delay(1500);
-
-                    var resultRes = await judge0Client.GetAsync(
-                        $"submissions/{submissionToken}?base64_encoded=false");
-                    var resultJson = await resultRes.Content.ReadAsStringAsync();
-
-                    using var resultDoc = JsonDocument.Parse(resultJson);
-                    var root = resultDoc.RootElement;
-
-                    var statusId = root.GetProperty("status").GetProperty("id").GetInt32();
-
-                    // 1=Queue, 2=Processing, 3+=Done
-                    if (statusId <= 2) continue;
-
-                    if (root.TryGetProperty("stdout", out var stdout) && stdout.ValueKind != JsonValueKind.Null)
-                        output = stdout.GetString()!;
-                    else if (root.TryGetProperty("stderr", out var stderr) && stderr.ValueKind != JsonValueKind.Null)
-                        output = "Hata:\n" + stderr.GetString();
-                    else if (root.TryGetProperty("compile_output", out var compile) && compile.ValueKind != JsonValueKind.Null)
-                        output = "Derleme hatası:\n" + compile.GetString();
-
-                    break;
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    return BadRequest(new { message = $"Judge0 Hatası ({response.StatusCode}): {errorContent}" });
                 }
+
+                var resultJson = await response.Content.ReadAsStringAsync();
+                using var resultDoc = JsonDocument.Parse(resultJson);
+                var root = resultDoc.RootElement;
+
+                string output = "Çıktı yok.";
+
+                if (root.TryGetProperty("stdout", out var stdout) && stdout.ValueKind != JsonValueKind.Null)
+                    output = stdout.GetString()!;
+                else if (root.TryGetProperty("stderr", out var stderr) && stderr.ValueKind != JsonValueKind.Null)
+                    output = "Hata:\n" + stderr.GetString()!;
+                else if (root.TryGetProperty("compile_output", out var compile) && compile.ValueKind != JsonValueKind.Null)
+                    output = "Derleme hatası:\n" + compile.GetString()!;
 
                 return Ok(new { output });
             }
             catch (Exception ex)
             {
-                return BadRequest($"Çalıştırma hatası: {ex.Message}");
+                return BadRequest(new { message = $"Çalıştırma hatası: {ex.Message}" });
             }
         }
 

@@ -20,7 +20,7 @@ namespace Persistance.Repositories
 
         public async Task AddAsync(Role role)
         {
-            await _context.Roles.AddAsync(role); // Eğer AppDbContext'te DbSet adın Roles değilse burayı düzelt
+            await _context.Roles.AddAsync(role); 
         }
 
         public async Task<int> SaveAsync()

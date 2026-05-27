@@ -14,6 +14,9 @@ namespace Application.Repositories
         Task<int> SaveAsync();
         Task AddTeacherStudentAsync(TeacherStudent relation);
         Task<List<User>> GetStudentsByTeacherIdAsync(int teacherId);
+        Task<bool> IsApprovedTeacherAsync(string email);
 
+        Task<List<User>> GetTeachersOfStudentAsync(int studentId);
+        Task<bool> CheckTeacherStudentRelationExistsAsync(int studentId, int teacherId);
     }
 }

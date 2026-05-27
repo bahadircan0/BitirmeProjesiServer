@@ -29,6 +29,12 @@ namespace Persistance.Repositories
             await _context.Users.AddAsync(user);
         }
 
+        public async Task<bool> CheckTeacherStudentRelationExistsAsync(int studentId, int teacherId)
+        {
+            return await _context.TeacherStudents
+        .AnyAsync(ts => ts.StudentId == studentId && ts.TeacherId == teacherId && !ts.Deleted);
+        }
+
         public async Task<User?> GetByEmailAsync(string email)
         {
             return await _context.Users
@@ -39,10 +45,29 @@ namespace Persistance.Repositories
         public async  Task<List<User>> GetStudentsByTeacherIdAsync(int teacherId)
         {
             return await _context.TeacherStudents
-        .Where(ts => ts.TeacherId == teacherId && !ts.Deleted) // Hocaya ait ve silinmemiş kayıtlar
-        .Select(ts => ts.Student) // Ara tablodan "Student" (User) nesnesine geçiş yapıyoruz
-        .Where(s => !s.Deleted) // Öğrenci de silinmemiş olmalı
+        .Where(ts => ts.TeacherId == teacherId && !ts.Deleted) 
+        .Select(ts => ts.Student) 
+        .Where(s => !s.Deleted) 
         .ToListAsync();
+        }
+
+        public async Task<List<User>> GetTeachersOfStudentAsync(int studentId)
+        {
+            
+            var teacherIds = await _context.TeacherStudents
+                .Where(ts => ts.StudentId == studentId && !ts.Deleted)
+                .Select(ts => ts.TeacherId)
+                .ToListAsync();
+
+            return await _context.Users
+                .Where(u => teacherIds.Contains(u.RecordId) && !u.Deleted)
+                .ToListAsync();
+        }
+
+        public async Task<bool> IsApprovedTeacherAsync(string email)
+        {
+            return await _context.ApprovedTeachers
+                .AnyAsync(x => x.Email == email && !x.IsDeleted);
         }
 
         public async Task<int> SaveAsync()

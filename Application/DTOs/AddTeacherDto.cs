@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace Application.DTOs
 {
-    public class RunCodeDto
+    public class AddTeacherDto
     {
-        public string Code { get; set; } 
-        public int LanguageId { get; set; }
+        public int StudentId { get; set; } 
+        public string TeacherEmail { get; set; } 
     }
 }

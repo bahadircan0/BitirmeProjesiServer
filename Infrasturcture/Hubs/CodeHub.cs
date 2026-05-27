@@ -10,9 +10,15 @@ namespace Infrasturcture.Hubs
 {
     public class CodeHub : Hub
     {
+        // 1. Mevcut olan: Kod gönderimi
         public async Task SendCode(int meetingId, string code)
         {
             await Clients.OthersInGroup(meetingId.ToString()).SendAsync("ReceiveCode", code);
+        }
+        // 2. YENİ EKLENEN: Dil seçimi gönderimi
+        public async Task SendLanguage(int meetingId, string language)
+        {
+            await Clients.OthersInGroup(meetingId.ToString()).SendAsync("ReceiveLanguage", language);
         }
 
         // Kullanıcı toplantı odasına katılınca gruba ekle

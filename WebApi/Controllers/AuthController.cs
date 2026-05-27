@@ -7,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using BCrypt.Net; 
 
 namespace WebApi.Controllers
 {
@@ -15,7 +16,7 @@ namespace WebApi.Controllers
     public class AuthController : Controller
     {
         private readonly IUserRepository _userRepository;
-        private readonly IConfiguration _configuration; // appsettings.json'daki JWT ayarlarına ulaşmak için
+        private readonly IConfiguration _configuration;
 
         public AuthController(IUserRepository userRepository, IConfiguration configuration)
         {
@@ -28,13 +29,28 @@ namespace WebApi.Controllers
         {
             try
             {
+                
                 var existingUser = await _userRepository.GetByEmailAsync(registerDto.Email);
                 if (existingUser != null)
                 {
                     return BadRequest("Bu e-posta adresi zaten kullanılıyor.");
                 }
+
+                
+                if (registerDto.RoleId == (int)UserRoles.Teacher)
+                {
+                    bool isApprovedTeacher = await _userRepository.IsApprovedTeacherAsync(registerDto.Email);
+
+                    if (!isApprovedTeacher)
+                    {
+                        return BadRequest("Sisteme hoca olarak kayıt olma yetkiniz bulunmuyor. Lütfen kurum yöneticisiyle iletişime geçin.");
+                    }
+                }
+               
+
                 User? teacher = null;
 
+               
                 if (registerDto.RoleId == (int)UserRoles.Student)
                 {
                     if (string.IsNullOrEmpty(registerDto.TeacherEmail))
@@ -50,10 +66,14 @@ namespace WebApi.Controllers
                     }
                 }
 
+                
+                string hashedPassword = BCrypt.Net.BCrypt.HashPassword(registerDto.Password);
+
+                
                 var newUser = new User
                 {
                     Email = registerDto.Email,
-                    Password = registerDto.Password,
+                    Password = hashedPassword, 
                     Name = registerDto.Name,
                     Surname = registerDto.Surname,
                     RoleId = registerDto.RoleId,
@@ -64,6 +84,7 @@ namespace WebApi.Controllers
                 await _userRepository.AddUserAsync(newUser);
                 await _userRepository.SaveAsync();
 
+                
                 if (registerDto.RoleId == (int)UserRoles.Student && teacher != null)
                 {
                     var relation = new TeacherStudent
@@ -78,7 +99,6 @@ namespace WebApi.Controllers
                     await _userRepository.SaveAsync();
                 }
 
-
                 return Ok("Kullanıcı başarıyla kaydedildi! 🎉");
             }
             catch (Exception ex)
@@ -88,7 +108,6 @@ namespace WebApi.Controllers
         }
 
 
-
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
         {
@@ -96,28 +115,28 @@ namespace WebApi.Controllers
             {
                 var user = await _userRepository.GetByEmailAsync(loginDto.Email);
 
-                if (user == null || user.Password != loginDto.Password)
+                
+                if (user == null || !BCrypt.Net.BCrypt.Verify(loginDto.Password, user.Password))
                 {
                     return BadRequest("E-posta veya şifre hatalı.");
                 }
-
 
                 var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
                 var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
                 var claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.NameIdentifier, user.RecordId.ToString()),
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Name, $"{user.Name} {user.Surname}"),
-                new Claim(ClaimTypes.Role, user.Role.Name)
-            };
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.RecordId.ToString()),
+                    new Claim(ClaimTypes.Email, user.Email),
+                    new Claim(ClaimTypes.Name, $"{user.Name} {user.Surname}"),
+                    new Claim(ClaimTypes.Role, user.Role.Name)
+                };
 
                 var token = new JwtSecurityToken(
                     issuer: _configuration["Jwt:Issuer"],
                     audience: _configuration["Jwt:Audience"],
                     claims: claims,
-                    expires: DateTime.Now.AddHours(3), // Token 3 saat geçerli
+                    expires: DateTime.Now.AddHours(3), 
                     signingCredentials: credentials);
 
                 var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
@@ -127,7 +146,7 @@ namespace WebApi.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, $"Giriş yaparken bir hata oluştu: {ex.Message}");
-            }
+            } 
         }
     }
 }

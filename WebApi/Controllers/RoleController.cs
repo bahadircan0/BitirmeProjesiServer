@@ -10,7 +10,6 @@ namespace WebApi.Controllers
     {
         private readonly IRoleRepository _roleRepository;
 
-        // Dependency Injection ile sadece Interface'i istiyoruz. Temiz mimari!
         public RoleController(IRoleRepository roleRepository)
         {
             _roleRepository = roleRepository;
