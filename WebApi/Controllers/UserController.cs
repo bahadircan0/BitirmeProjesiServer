@@ -117,5 +117,34 @@ namespace WebApi.Controllers
                 return BadRequest($"Hoca eklenirken bir hata oluştu: {ex.Message}");
             }
         }
+
+        [HttpPut("update-profile")]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto request)
+        {
+            try
+            {
+              
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null)
+                    return Unauthorized("Kullanıcı bilgisi token içerisinde bulunamadı.");
+
+                int userId = int.Parse(userIdClaim.Value);
+
+                
+                var isSuccess = await _userRepository.UpdateProfileByIdAsync(userId, request);
+
+                if (!isSuccess)
+                {
+                    return NotFound("Güncellenmek istenen kullanıcı sistemde bulunamadı.");
+                }
+
+                // 3. İşlem başarılıysa frontend'e yanıt dönüyoruz
+                return Ok(new { message = "Profil bilgileriniz başarıyla güncellendi! ✅" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"Profil güncellenirken bir hata oluştu: {ex.Message}");
+            }
+        }
     }
 }

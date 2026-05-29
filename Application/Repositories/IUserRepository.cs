@@ -1,4 +1,5 @@
-﻿using Domain.Entities;
+﻿using Application.DTOs;
+using Domain.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,5 +19,7 @@ namespace Application.Repositories
 
         Task<List<User>> GetTeachersOfStudentAsync(int studentId);
         Task<bool> CheckTeacherStudentRelationExistsAsync(int studentId, int teacherId);
+
+        Task<bool> UpdateProfileByIdAsync(int userId, UpdateProfileDto request);
     }
 }

@@ -1,4 +1,5 @@
-﻿using Application.Repositories;
+﻿using Application.DTOs;
+using Application.Repositories;
 using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Persistance.Contexts;
@@ -73,6 +74,22 @@ namespace Persistance.Repositories
         public async Task<int> SaveAsync()
         {
             return await _context.SaveChangesAsync();
+        }
+
+        public async Task<bool> UpdateProfileByIdAsync(int userId, UpdateProfileDto request)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.RecordId == userId && !u.Deleted);
+
+            if (user == null)
+                return false;
+
+            user.Name = request.Name;
+            user.Surname = request.Surname;
+
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync();
+
+            return true;
         }
     }
 }
