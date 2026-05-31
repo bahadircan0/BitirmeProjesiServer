@@ -16,7 +16,6 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddHttpClient("Judge0Client", client =>
 {
-    // EĞER BURASI YANLIŞSA TIMEOUT YERSİN!
     client.BaseAddress = new Uri("http://localhost:2358/");
 });
 

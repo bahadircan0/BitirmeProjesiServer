@@ -138,7 +138,6 @@ namespace WebApi.Controllers
                     return NotFound("Güncellenmek istenen kullanıcı sistemde bulunamadı.");
                 }
 
-                // 3. İşlem başarılıysa frontend'e yanıt dönüyoruz
                 return Ok(new { message = "Profil bilgileriniz başarıyla güncellendi! ✅" });
             }
             catch (Exception ex)
